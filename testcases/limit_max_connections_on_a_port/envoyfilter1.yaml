@@ -1,0 +1,28 @@
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: bookinfo-9080-connection-limit
+  namespace: bookinfo1
+spec:
+  configPatches:
+  - applyTo: NETWORK_FILTER
+    match:
+      context: ANY
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+        portNumber: 9080
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.network.ConnectionLimit
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.filters.network.connection_limit.v3.ConnectionLimit
+          max_connections: 1
+          stat_prefix: envoy_filters_network_connection_limit
+  workloadSelector:
+    labels:
+      app: productpage
+---
