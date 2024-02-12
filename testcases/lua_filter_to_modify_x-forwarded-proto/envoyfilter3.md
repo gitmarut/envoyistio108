@@ -11,10 +11,10 @@ Deploy httpbin application (yaml [here](https://github.com/istio/istio/blob/mast
 
 Expose the httpbin service using a istio gateway and a istio VS. Gateway yaml and VS yaml is given in this directory. Make sure istio ingress gateway is of service type LoadBalancer. (Since I am using a kind cluster with MetalLB in my linux VM, I am not short of LB addresses).
 
----
-**NOTE**  
-I have installed istio using istioctl and default profile.
----
+```
+NOTE
+I have installed istio with istioctl and default profile
+```
 Send a curl request with --connecto-to flag set from host VM's shell.
 
     curl -v -k -s   https://httpbin.aegle.info/get?show_env=true --connect-to httpbin.aegle.info:443:172.18.64.1:443
