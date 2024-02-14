@@ -1,7 +1,7 @@
 ## Purpose
 
 This envoyfilter is a lua filter to replace the headers on the requests. 
-In this example lua code is replacing the header "x-forwarded-proto" to http even if the original request is https.
+In this example lua code is replacing the header "x-forwarded-proto" to http even if the original request is https. (I know it sound silly)
 
 ## How to test it
 
