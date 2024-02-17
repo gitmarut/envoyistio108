@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: httpbin-vs4
+  namespace: httpbin
+spec:
+  gateways:
+  - istio-system/httpbin-gateway4
+  hosts:
+  - httpbin.example.com
+  http:
+  - name: http
+    route:
+    - destination:
+        host: httpbin.httpbin.svc.cluster.local
+        port:
+          number: 8000
+      weight: 100
