@@ -40,10 +40,10 @@ Send a curl like given below and see the XFCC is populated in the output with bi
 
 Apply the envoyfilter given in the testcase.
 
-Check the ingress gateway pod's istio config as given in the previous step and check "*forward_client_cert_details* & "**set_current_client_cert_details*" . First one is changed to  "FORWARD_ONLY" and then four boolean true. So what we set for "*set_current_client_cert_details*" is not taking any effect.
+Check the ingress gateway pod's istio config as given in the previous step and check "*forward_client_cert_details*" & "*set_current_client_cert_details*" . First one is changed to  "APPEND_FORWARD" and then four boolean true. So what we set for "*set_current_client_cert_details*" is not taking any effect.
 
         "use_remote_address": true,
-        "forward_client_cert_details": "FORWARD_ONLY",
+        "forward_client_cert_details": "APPEND_FORWARD"
         "set_current_client_cert_details": {
          "subject": true,
          "cert": true,
@@ -51,10 +51,17 @@ Check the ingress gateway pod's istio config as given in the previous step and c
          "uri": true
         },
 
-There is some bug in the code where you cannot unset the boolean values in istio-proxy. Mostly this is the [bug](https://github.com/istio/istio/issues/18169#issuecomment-1673581700) and it is still present. Nevertheless "*chain*"  can be set and unset as it is does not have a default value in the code.
+As per the documentation, "*set_current_client_cert_details*" should be effective when values for "*forward_client_cert_details*"  is either "SANITIZE_SET" or "APPEND_FORWARD". But there is some bug in the code where you cannot unset the boolean values in istio-proxy. Mostly this is the [bug](https://github.com/istio/istio/issues/18169#issuecomment-1673581700) and it is still present. Nevertheless "*chain*"  can be set and unset as it is does not have a default value in the code.
+
+You can further edit the envoyfilter directly with:
+
+    kubectl edit envoyfilter -n istio-system xffc-client-cert-details-4
+
+Change the "*forward_client_cert_details*" to "FORWARD_ONLY". This will strip of the client cert from the XFCC header.
 
 But you can play with "*forward_client_cert_details*" and see how it behaves.
 Docmentation is [here](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto).
 
 **3. Some observations**
 After setting some of the values given in documentation, on restart of the ingress gateway pod it wont come up. Only after removal of envoyfilter it came up. Need to handle this in automation.
+
