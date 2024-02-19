@@ -1,0 +1,21 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  labels:
+    gw: bookinfo-gw
+  name: bookinfo-gw-5
+  namespace: istio-system
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - bookinfo0/bookinfo.aegle.info
+    port:
+      name: bookinfo
+      number: 8443
+      protocol: HTTPS
+    tls:
+      credentialName: aegle-wildcard-5
+      minProtocolVersion: TLSV1_2
+      mode: SIMPLE

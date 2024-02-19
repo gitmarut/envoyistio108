@@ -1,0 +1,19 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: productpage-vs-5
+  namespace: bookinfo0
+spec:
+  gateways:
+  - istio-system/bookinfo-gw-5
+  hosts:
+  - bookinfo.aegle.info
+  http:
+  - name: http
+    route:
+    - destination:
+        host: productpage.bookinfo0.svc.cluster.local
+        port:
+          number: 9080
+      weight: 100
+---
