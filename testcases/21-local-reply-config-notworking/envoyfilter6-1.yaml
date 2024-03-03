@@ -1,0 +1,44 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: local-reply-config-6
+  namespace: istio-system
+spec:
+  workloadSelector:
+    labels:
+      app: istio-ingressgateway
+  configPatches:
+  - applyTo: NETWORK_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: "envoy.filters.network.http_connection_manager"
+        portNumber: 8443
+        name: "https.8443.bookinfo.bookinfo-gw-5.istio-system"
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: "envoy.filters.network.http_connection_manager"      
+        typed_config:
+          "@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager"
+          stat_prefix: "local_reply"
+          local_reply_config:
+            mappers:
+            - filter:
+                status_code_filter:
+                  comparison:
+                    op: EQ
+                    value:
+                      default_value: 404
+                      runtime_key: key_b
+              headers_to_add:
+                - header:
+                    key: "foo"
+                    value: "bar"
+                  append_action: OVERWRITE_IF_EXISTS_OR_ADD
+              status_code: 401
+              body:
+                inline_string: "not allowed"
+---
