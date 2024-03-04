@@ -1,0 +1,21 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  labels:
+    gw: istio-ingressgateway
+  name: httpbin-gateway6
+  namespace: istio-system
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - httpbin/httpbin.example.com
+    port:
+      name: https
+      number: 443
+      protocol: HTTPS
+    tls:
+      credentialName: httpbin-credential
+      mode: SIMPLE
+---
