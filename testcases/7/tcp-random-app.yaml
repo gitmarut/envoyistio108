@@ -21,6 +21,7 @@ metadata:
     app: tcp-random-app
     service: tcp-random-app
 spec:
+  type: LoadBalancer
   ports:
   - port: 17777
     name: tcp
