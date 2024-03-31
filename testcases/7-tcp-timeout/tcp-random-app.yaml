@@ -47,6 +47,6 @@ spec:
       serviceAccountName: tcp-random-app
       containers:
       - name: tcp-random-app
-        image: gitmarut/tcp-random-app:v1.1
+        image: gitmarut/tcp-random-app:v1.2
         imagePullPolicy: IfNotPresent
 ---
