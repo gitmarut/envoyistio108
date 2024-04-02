@@ -1,0 +1,21 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  labels:
+    gw: httpbin-gateway
+  name: httpbin-gateway
+  namespace: istio-system
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - httpbin/httpbin.aegle.info
+    port:
+      name: httpbin
+      number: 8443
+      protocol: HTTPS
+    tls:
+      credentialName: aegle-wildcard
+      minProtocolVersion: TLSV1_2
+      mode: SIMPLE

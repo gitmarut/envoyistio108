@@ -1,0 +1,50 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  annotations:
+  labels:
+  name: envoyfilter8
+  namespace: istio-system
+spec:
+  configPatches:
+  - applyTo: NETWORK_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.rbac
+          sni: httpbin.aegle.info
+        portNumber: 8443
+      proxy:
+        proxyVersion: ^1\.(9|12|15|17|19)(\.\d+)?(-.*)?$
+    patch:
+      operation: REPLACE
+      value:
+        '@type': type.googleapis.com/envoy.config.listener.v3.Filter
+        name: envoy.filters.network.rbac
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.filters.network.rbac.v3.RBAC
+          rules:
+            policies:
+              visa-tier1-visa-mginx-t1-t1-mginx0:
+                permissions:
+                - and_rules:
+                    rules:
+                    - or_rules:
+                        rules:
+                        - requested_server_name:
+                            exact: httpbin.aegle.info
+                    - or_rules:
+                        rules:
+                        - destination_port: 8443
+                principals:
+                - and_ids:
+                    ids:
+                    - any: true
+          stat_prefix: tcp.
+  priority: -2000
+  workloadSelector:
+    labels:
+      app: istio-ingressgateway
+      istio: ingressgateway
