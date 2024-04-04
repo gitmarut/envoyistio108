@@ -17,17 +17,16 @@ spec:
           sni: httpbin.aegle.info
         portNumber: 8443
       proxy:
-        proxyVersion: ^1\.(9|12|15|17|19)(\.\d+)?(-.*)?$
+        proxyVersion: ^1\.(9|12|15|17|19|20|21)(\.\d+)?(-.*)?$
     patch:
-      operation: REPLACE
+      operation: INSERT_FIRST
       value:
-        '@type': type.googleapis.com/envoy.config.listener.v3.Filter
         name: envoy.filters.network.rbac
         typed_config:
           '@type': type.googleapis.com/envoy.extensions.filters.network.rbac.v3.RBAC
           rules:
             policies:
-              visa-tier1-visa-mginx-t1-t1-mginx0:
+              httpbin-traffic-policy:
                 permissions:
                 - and_rules:
                     rules:
@@ -39,11 +38,11 @@ spec:
                         rules:
                         - destination_port: 8443
                 principals:
-                - and_ids:
-                    ids:
-                    - any: true
-          stat_prefix: tcp.
-  priority: -2000
+                  - source_ip:
+                      address_prefix: "10.244.0.0"
+                      prefix_len: 24
+          stat_prefix: httpbin-rbac.
+  priority: -10
   workloadSelector:
     labels:
       app: istio-ingressgateway
