@@ -3,19 +3,18 @@ kind: EnvoyFilter
 metadata:
   annotations:
   labels:
-  name: envoyfilter8-gw
-  namespace: istio-system
+  name: envoyfilter8-app
+  namespace: httpbin
 spec:
   configPatches:
   - applyTo: NETWORK_FILTER
     match:
-      context: GATEWAY
+      context: SIDECAR_INBOUND
       listener:
         filterChain:
           filter:
             name: envoy.filters.network.rbac
-          sni: httpbin.aegle.info
-        portNumber: 8443
+        portNumber: 8000
       proxy:
         proxyVersion: ^1\.(9|12|15|17|19|20|21)(\.\d+)?(-.*)?$
     patch:
@@ -45,5 +44,5 @@ spec:
   priority: -10
   workloadSelector:
     labels:
-      app: istio-ingressgateway
-      istio: ingressgateway
+      app: httpbin
+      version: v1
