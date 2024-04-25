@@ -1,147 +1,120 @@
 ## Purpose
 
-This envoyfilter identifies the source IP of the request based on the configured values of 'use_remote_address' & 'xff_num_trusted_hops' mainly. All standard proxies support XFF header appending. Useful in knowing source IP of the request and may act in terms of security in the app itself, or logging, or whatever.
-
-I have taken this envoyfilter from = https://github.com/istio/istio/issues/29893
-
-## Explanation
-Example envoyfilter has mainly three fields.
-1. `skip_xff_append` - keep it false for this particular testcase (explanation [here](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto))
-
-2. `use_remote_address` - we will play with this (explanation [here](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto))
-
-	By default this is false. We will make it true, but the  `skip_xff_append` has to be false.
-
-3. `xff_num_trusted_hops` - we will play with this (explanation [here](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto))
-
-	We will test this mainly. Definition says this decides the position of the trusted client IP in a list of `X-forwarded-for` header from right most value.
-
-
+This simple envoyfilter can help you configure some access policies(RBAC) for your gateway hostnames. Example given here controls the http access based on the source IP address of the request.
 
 ## How to test it
 
-  **1, Without envoy filter applied**
+**1. Install httpbin application, GW, VS**
 
-Deploy httpbin application (yaml [here](https://github.com/istio/istio/blob/master/samples/httpbin/httpbin.yaml)) to httpbin namespace. Istio injection is enabled in httpbin namespace.
+Deploy httpbin app in the cluster. Expose the httpbin service using a istio gateway and a istio VS. App deployment yaml, Gateway yaml, VS yaml and secrets yaml is given in this directory. Make sure istio ingress gateway is of service type LoadBalancer. (Since I am using a kind cluster with MetalLB in my linux VM, I am not short of LB addresses).
 
-Expose the httpbin service using a istio gateway and a istio VS. Gateway yaml and VS yaml is given in this directory. Make sure istio ingress gateway is of service type LoadBalancer. (Since I am using a kind cluster with MetalLB in my linux VM, I am not short of LB addresses).
+**2. Connect to the app**
+From your host linux VM terminal where kind k8s cluster is running, connect to the httpbin  app using "curl" as given below.
 
-Deploy a sleep application in any namespace(it does not have to be istio-injection enabled). Yaml [here.](https://github.com/istio/istio/blob/master/samples/sleep/sleep.yaml)
+    curl   -k -s https://httpbin.aegle.info/ip --connect-to httpbin.aegle.info:443:172.18.64.1:443
 
- - From the shell of "sleep" pod.
+Response will mention the source IP of the request. In my case I see that output says it is ***"origin": "10.244.0.1"***
 
-Use the following.
+**3. Apply envoyfilter to the GW**
 
-`kubectl exec -it -n sleep sleep-9454cc476-8rk8 -n  -- sh`
+The envoy filter named "envoyfilter8-gw.yaml" is configured to allow requests from "10.244.0.0". You can edit the envoy filter to allow your network's IP range /host bits as "address_prefix" and "prefix_len".
 
-Do a curl from "sleep" pod's shell.
+Apply the envoy filter. Again, do a curl as given above. You will see that curl is allowed.
 
-    curl -v -k -s http://httpbin.httpbin.svc.cluster.local:8000/ip
-    curl -v -k -s http://httpbin.httpbin.svc.cluster.local:8000/headers
+Edit the envoyfilter to change the "address_prefix" to an non-existent range, say "10.245.0.0". And apply this envoy filter again.  Again, do a curl as given above. You will see that curl does not return anything from the app.
 
-First curl will show an output as given below. This is the localhost IP address of sidecar attached to httpbin.	 
+**3. How to debug this**
 
-    {
-      "origin": "127.0.0.6"
-    }
+We can check either envoy stats or envoy logs to debug this.
 
-Second curl should not show the header - `"X-Envoy-External-Address"`
+*3.1 Envoy stats*
 
- - From host Linux VM shell
- 
- do curl
+We can check envoy stats to see whether GW pod is disallowing the requests when there is non-existent IP ranged in "address_prefix"
 
-`curl -v -k -s https://httpbin.aegle.info/ip --connect-to httpbin.aegle.info:443:172.18.64.1:443`
+See that envoy filter has a stat prefix "httpbin-rbac.". So we can port-forward port 15000 of istio ingress gateway pod to the host machine as given below.
 
-`curl -v -k -s https://httpbin.aegle.info/headers --connectto httpbin.aegle.info:443:172.18.64.1:443`
+    kubectl port-forward -n istio-system pod/istio-ingressgateway-d4db74f5b-6v6f7 15000:15000 &
+And then sending curl request to stats endpoint of envoy, check stats for httpbin as given below.
 
-First curl will show an output as given below. This IP address is first IP address from the pod IP range in kubernetes cluster. This curl request is coming through ingress gateway pod and by default for any gateway pod "use_remote_address" is enabled.
+    gitmarut@gitmarut:~/go/src/envoyistio108/testcases/8-sni-rbac$ curl -X POST -s http://127.0.0.1:15000/stats | grep httpbin
+    Handling connection for 15000
+    httpbin-rbac.rbac.allowed: 2 <<<< curl succeeded
+    httpbin-rbac.rbac.denied: 5 <<<< curl failed
+    httpbin-rbac.rbac.shadow_allowed: 0
+    httpbin-rbac.rbac.shadow_denied: 0
 
-    {
-      "origin": "10.244.0.1"
-    }
+*3.2 Envoy logs*
 
-Second curl should not show the header - `"X-Envoy-External-Address"`
+You can port-forward port 15000 of istio ingress gateway pod to the host machine as given below.
 
- **2. With envoy filter applied**
+    kubectl port-forward -n istio-system pod/istio-ingressgateway-d4db74f5b-6v6f7 15000:15000 &
 
-Apply the envoy filter given. 
+Enable the following logs using envoy logging endpoint.
 
-    kubectl apply -f envoyfilter2.yaml
+    curl -X POST -s http://127.0.0.1:15000/logging?paths=connection:debug,http:debug,conn_handler:debug,main:debug,pool:debug,rbac:debug
 
- - From sleep pod's shell
- 
- send the same curl as above
+Now do the curl to httpbin with a date prefixed.
 
-    `curl -v -k -s http://httpbin.httpbin.svc.cluster.local:8000/ip`
-    `curl -v -k -s http://httpbin.httpbin.svc.cluster.local:8000/headers`
+    date;curl -v  -k -s https://httpbin.aegle.info/ip --connect-to httpbin.aegle.info:443:172.18.64.1:443
 
-First curl will show the pod ip of sleep in output
+Take the logs of ingress gateway pod and on a happy path passing case you will see a rbac enforced allowed with the policy name mentioned in log.
 
-`{
-  "origin": "10.244.0.40"
-}`
+    2024-04-24T01:32:42.815579Z     debug   envoy rbac external/envoy/source/extensions/filters/network/rbac/rbac_filter.cc:156     enforced allowed, matched policy httpbin-traffic-policy thread=30
 
-Second one will not show  "X-Envoy-External-Address", since there is no external client involved. But it will show " "X-Envoy-Internal": "true", which was not there when  envoyfilter was not present. More details on headers [here](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_conn_man/headers#x-envoy-internal "here").
+On failing case you will see 
 
-- From host linux VM shell
+    2024-04-24T01:29:21.481404Z     debug   envoy rbac external/envoy/source/extensions/filters/network/rbac/rbac_filter.cc:168     enforced denied, matched policy none    thread=30
 
-do curl
+*3.3 Full logs for reference**
+Passing 
 
-`curl -v -k -s https://httpbin.aegle.info/ip --connect-to httpbin.aegle.info:443:172.18.64.1:443`
+    gitmarut@gitmarut:~/go/src/envoyistio108/testcases/8-sni-rbac$ grep 01:32:42 logs123
+    
+    2024-04-24T01:32:42.812279Z     debug   envoy conn_handler external/envoy/source/extensions/listener_managers/listener_manager/active_tcp_listener.cc:159       [Tags: "ConnectionId":"840"] new connection from 10.244.0.1:3032       thread=30
+    2024-04-24T01:32:42.815526Z     debug   envoy rbac external/envoy/source/extensions/filters/network/rbac/rbac_filter.cc:90      checking connection: requestedServerName: httpbin.aegle.info, sourceIP: 10.244.0.1:3032, directRemoteIP: 10.244.0.1:3032,remoteIP: 10.244.0.1:3032, localAddress: 10.244.0.10:8443, ssl: uriSanPeerCertificate: , dnsSanPeerCertificate: , subjectPeerCertificate: , dynamicMetadata:   thread=30
+    2024-04-24T01:32:42.815579Z     debug   envoy rbac external/envoy/source/extensions/filters/network/rbac/rbac_filter.cc:156     enforced allowed, matched policy httpbin-traffic-policy thread=30
+    2024-04-24T01:32:42.815622Z     debug   envoy http external/envoy/source/common/http/conn_manager_impl.cc:391   [Tags: "ConnectionId":"840"] new stream thread=30
+    2024-04-24T01:32:42.815662Z     debug   envoy http external/envoy/source/common/http/conn_manager_impl.cc:1194  [Tags: "ConnectionId":"840","StreamId":"7835256933037303912"] request headers complete (end_stream=true):
+    2024-04-24T01:32:42.815671Z     debug   envoy http external/envoy/source/common/http/conn_manager_impl.cc:1177  [Tags: "ConnectionId":"840","StreamId":"7835256933037303912"] request end stream       thread=30
+    2024-04-24T01:32:42.815691Z     debug   envoy connection external/envoy/source/common/network/connection_impl.h:98      [Tags: "ConnectionId":"840"] current connecting state: false  thread=30
+    2024-04-24T01:32:42.818319Z     debug   envoy http external/envoy/source/common/http/conn_manager_impl.cc:1863  [Tags: "ConnectionId":"840","StreamId":"7835256933037303912"] encoding headers via codec (end_stream=false):
+    2024-04-24T01:32:42.818419Z     debug   envoy http external/envoy/source/common/http/conn_manager_impl.cc:1968  [Tags: "ConnectionId":"840","StreamId":"7835256933037303912"] Codec completed encoding stream. thread=30
+    2024-04-24T01:32:42.818963Z     debug   envoy connection external/envoy/source/common/network/connection_impl.cc:714    [Tags: "ConnectionId":"840"] remote close       thread=30
+    2024-04-24T01:32:42.819007Z     debug   envoy connection external/envoy/source/common/network/connection_impl.cc:278    [Tags: "ConnectionId":"840"] closing socket: 0  thread=30
+    2024-04-24T01:32:42.819100Z     debug   envoy connection external/envoy/source/extensions/transport_sockets/tls/ssl_socket.cc:329       [Tags: "ConnectionId":"840"] SSL shutdown: rc=1thread=30
+    2024-04-24T01:32:42.819138Z     debug   envoy conn_handler external/envoy/source/extensions/listener_managers/listener_manager/active_stream_listener_base.cc:135       [Tags: "ConnectionId":"840"] adding to cleanup list    thread=30
+    gitmarut@gitmarut:~/go/src/envoyistio108/testcases/8-sni-rbac$
+    gitmarut@gitmarut:~/go/src/envoyistio108/testcases/8-sni-rbac$
 
-`curl -v -k -s https://httpbin.aegle.info/headers --connect-to httpbin.aegle.info:443:172.18.64.1:443`
+Failing
 
-First curl will show the client IP (in this case first IP from podCIDR) and the pod IP of the istio GW pod.
-
-`{
-  "origin": "10.244.0.1,10.244.0.30"
-}`
-
-Second one will show `"X-Envoy-External-Address": "10.244.0.1"` . This is coming from the configuration in envoyfilter `xff_num_trusted_hops`. Since this is kept as one, it will take the first one on the left from the rightmost IP.
-
-**3. Edit Envoyfilter for xff_num_trusted_hops: 2**
-
-Edit the envoy filter and make "xff_num_trusted_hops: 2"
-
-- From the sleep pod
-
-Do curl
-
-`curl -v -k -s  --header "X-Forwarded-For: 3.1.3.100,2.1.6.4" http://httpbin.httpbin.svc.cluster.local:8000/ip
-`
-
-`curl -v -k -s  --header "X-Forwarded-For: 3.1.3.100,2.1.6.4" http://httpbin.httpbin.svc.cluster.local:8000/headers
-`
-
-First curl will give fake `X-forwarded-for` IPs, then podIP of the sleep pod.
-
-`{
-  "origin": "3.1.3.100,2.1.6.4,10.244.0.40"
-}`
-
-Second curl will show `"X-Envoy-External-Address": "3.1.3.100"` . This is because httpbin is thinking that client is `3.1.3.100` for `xff_num_trusted_hops` config set to 2 and fake `X-Forwarded-For` header present in the curl request.
-
-If you can edit `xff_num_trusted_hops`  to 1 and try the above two curls from sleep pod, you can see that first output has not changed. But second one has now `"X-Envoy-External-Address": "2.1.6.4"` which is because of httpbin is thinking that client is `2.1.6.4` for `xff_num_trusted_hops` config set to 1 and fake `X-Forwarded-For` header present in the curl request.
-
-- From host linux VM shell
-
-Send curls
-
-`curl -v -k -s --header "X-Forwarded-For: 3.1.3.100,2.1.6.4" https://httpbin.aegle.info/ip --connect-to httpbin.aegle.info:443:172.18.64.1:443`
-
-`curl -v -k -s --header "X-Forwarded-For: 3.1.3.100,2.1.6.4" https://httpbin.aegle.info/headers --connect-to httpbin.aegle.info:443:172.18.64.1:443`
-
-First curl will giveFirst curl will give fake `X-forwarded-for` IPs, then first IP from PodCIDR, then istio GW pod IP.
-
-`{
-  "origin": "3.1.3.100,2.1.6.4,10.244.0.1,10.244.0.43"
-}`
-
-
-
-Second curl will show `"X-Envoy-External-Address": "2.1.6.4"` . This is because httpbin is thinking that client is `2.1.6.4` for `xff_num_trusted_hops` config set to 2 and fake `X-Forwarded-For` header present in the curl request.
-
-If you can edit `xff_num_trusted_hops`  to 3 and try the above two curls from sleep pod, you can see that first output has not changed. But second one has now `"X-Envoy-External-Address": "3.1.3.100"` which is because of httpbin is thinking that client is `3.1.3.100` for `xff_num_trusted_hops` config set to 3 and fake `X-Forwarded-For` header present in the curl request.
-
+    gitmarut@gitmarut:~/go/src/envoyistio108/testcases/8-sni-rbac$
+    gitmarut@gitmarut:~/go/src/envoyistio108/testcases/8-sni-rbac$ grep 01:29:21 logs123
+    2024-04-24T01:29:21.002493Z     debug   envoy conn_handler external/envoy/source/extensions/listener_managers/listener_manager/active_tcp_listener.cc:159       [Tags: "ConnectionId":"733"] new connection from 10.244.0.1:44160      thread=31
+    2024-04-24T01:29:21.002816Z     debug   envoy http external/envoy/source/common/http/conn_manager_impl.cc:391   [Tags: "ConnectionId":"733"] new stream thread=31
+    2024-04-24T01:29:21.003012Z     debug   envoy http external/envoy/source/common/http/conn_manager_impl.cc:1194  [Tags: "ConnectionId":"733","StreamId":"8870473208851658696"] request headers complete (end_stream=true):
+    2024-04-24T01:29:21.003040Z     debug   envoy http external/envoy/source/common/http/conn_manager_impl.cc:1177  [Tags: "ConnectionId":"733","StreamId":"8870473208851658696"] request end stream       thread=31
+    2024-04-24T01:29:21.003070Z     debug   envoy connection external/envoy/source/common/network/connection_impl.h:98      [Tags: "ConnectionId":"733"] current connecting state: false  thread=31
+    2024-04-24T01:29:21.003152Z     debug   envoy pool external/envoy/source/common/conn_pool/conn_pool_base.cc:265 [Tags: "ConnectionId":"8"] using existing fully connected connection  thread=31
+    2024-04-24T01:29:21.003226Z     debug   envoy pool external/envoy/source/common/conn_pool/conn_pool_base.cc:182 [Tags: "ConnectionId":"8"] creating stream      thread=31
+    2024-04-24T01:29:21.004020Z     debug   envoy http external/envoy/source/common/http/conn_manager_impl.cc:1794  [Tags: "ConnectionId":"733","StreamId":"8870473208851658696"] closing connection due to connection close header        thread=31
+    2024-04-24T01:29:21.004105Z     debug   envoy http external/envoy/source/common/http/conn_manager_impl.cc:1863  [Tags: "ConnectionId":"733","StreamId":"8870473208851658696"] encoding headers via codec (end_stream=true):
+    'date', 'Wed, 24 Apr 2024 01:29:21 GMT'
+    2024-04-24T01:29:21.004137Z     debug   envoy http external/envoy/source/common/http/conn_manager_impl.cc:1968  [Tags: "ConnectionId":"733","StreamId":"8870473208851658696"] Codec completed encoding stream. thread=31
+    2024-04-24T01:29:21.004164Z     debug   envoy connection external/envoy/source/common/network/connection_impl.cc:146    [Tags: "ConnectionId":"733"] closing data_to_write=143 type=0 thread=31
+    2024-04-24T01:29:21.004176Z     debug   envoy connection external/envoy/source/common/network/connection_impl_base.cc:47        [Tags: "ConnectionId":"733"] setting delayed close timer with timeout 1000 ms  thread=31
+    2024-04-24T01:29:21.004201Z     debug   envoy pool external/envoy/source/common/http/http1/conn_pool.cc:53      [Tags: "ConnectionId":"8"] response complete    thread=31
+    2024-04-24T01:29:21.004228Z     debug   envoy pool external/envoy/source/common/conn_pool/conn_pool_base.cc:215 [Tags: "ConnectionId":"8"] destroying stream: 0 remaining       thread=31
+    2024-04-24T01:29:21.004435Z     debug   envoy connection external/envoy/source/common/network/connection_impl.cc:788    [Tags: "ConnectionId":"733"] write flush complete       thread=31
+    2024-04-24T01:29:21.004454Z     debug   envoy connection external/envoy/source/common/network/connection_impl.cc:278    [Tags: "ConnectionId":"733"] closing socket: 1  thread=31
+    2024-04-24T01:29:21.004507Z     debug   envoy conn_handler external/envoy/source/extensions/listener_managers/listener_manager/active_stream_listener_base.cc:135       [Tags: "ConnectionId":"733"] adding to cleanup list    thread=31
+    2024-04-24T01:29:21.478774Z     debug   envoy conn_handler external/envoy/source/extensions/listener_managers/listener_manager/active_tcp_listener.cc:159       [Tags: "ConnectionId":"734"] new connection from 10.244.0.1:17569      thread=30
+    2024-04-24T01:29:21.481350Z     debug   envoy rbac external/envoy/source/extensions/filters/network/rbac/rbac_filter.cc:90      checking connection: requestedServerName: httpbin.aegle.info, sourceIP: 10.244.0.1:17569, directRemoteIP: 10.244.0.1:17569,remoteIP: 10.244.0.1:17569, localAddress: 10.244.0.10:8443, ssl: uriSanPeerCertificate: , dnsSanPeerCertificate: , subjectPeerCertificate: , dynamicMetadata:      thread=30
+    2024-04-24T01:29:21.481404Z     debug   envoy rbac external/envoy/source/extensions/filters/network/rbac/rbac_filter.cc:168     enforced denied, matched policy none    thread=30
+    2024-04-24T01:29:21.481415Z     debug   envoy connection external/envoy/source/common/network/connection_impl.cc:146    [Tags: "ConnectionId":"734"] closing data_to_write=0 type=1   thread=30
+    2024-04-24T01:29:21.481419Z     debug   envoy connection external/envoy/source/common/network/connection_impl.cc:278    [Tags: "ConnectionId":"734"] closing socket: 1  thread=30
+    2024-04-24T01:29:21.481452Z     debug   envoy connection external/envoy/source/extensions/transport_sockets/tls/ssl_socket.cc:329       [Tags: "ConnectionId":"734"] SSL shutdown: rc=0thread=30
+    2024-04-24T01:29:21.481488Z     debug   envoy conn_handler external/envoy/source/extensions/listener_managers/listener_manager/active_stream_listener_base.cc:135       [Tags: "ConnectionId":"734"] adding to cleanup list    thread=30
+    2024-04-24T01:29:21.552072Z     debug   envoy main external/envoy/source/server/server.cc:263   flushing stats  thread=22
+    gitmarut@gitmarut:~/go/src/envoyistio108/testcases/8-sni-rbac$
 
