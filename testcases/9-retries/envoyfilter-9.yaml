@@ -1,0 +1,42 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: envoyfilter-9
+  namespace: istio-system
+spec:
+  configPatches:
+  - applyTo: HTTP_ROUTE
+    match:
+      context: GATEWAY
+      routeConfiguration:
+        vhost:
+          route:
+            action: ROUTE
+    patch:
+      operation: MERGE
+      value:
+        '@type': type.googleapis.com/envoy.config.route.v3.Route
+        route:
+          retry_policy:
+            host_selection_retry_max_attempts: "6"
+            num_retries: 0
+            retriable_status_codes:
+            - 503
+            retry_host_predicate:
+            - name: envoy.retry_host_predicates.previous_hosts
+              typed_config:
+                '@type': type.googleapis.com/envoy.extensions.retry.host.previous_hosts.v3.PreviousHostsPredicate
+            retry_on: reset,connect-failure,refused-stream,unavailable,cancelled,retriable-status-codes
+  - applyTo: CLUSTER
+    match:
+      context: GATEWAY
+    patch:
+      operation: MERGE
+      value:
+        '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
+        outlier_detection:
+          consecutive_gateway_failure: 10
+          enforcing_consecutive_5xx: 100
+          enforcing_consecutive_gateway_failure: 100
+          max_ejection_percent: 50
+---
