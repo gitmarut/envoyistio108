@@ -23,11 +23,11 @@ Apply the envoy filter. Again, do a curl as given above. You will see that curl 
 
 Edit the envoyfilter to change the "address_prefix" to an non-existent range, say "10.245.0.0". And apply this envoy filter again.  Again, do a curl as given above. You will see that curl does not return anything from the app.
 
-**3. How to debug this**
+**4. How to debug this**
 
 We can check either envoy stats or envoy logs to debug this.
 
-*3.1 Envoy stats*
+*4.1 Envoy stats*
 
 We can check envoy stats to see whether GW pod is disallowing the requests when there is non-existent IP ranged in "address_prefix"
 
@@ -43,7 +43,7 @@ And then sending curl request to stats endpoint of envoy, check stats for httpbi
     httpbin-rbac.rbac.shadow_allowed: 0
     httpbin-rbac.rbac.shadow_denied: 0
 
-*3.2 Envoy logs*
+*4.2 Envoy logs*
 
 You can port-forward port 15000 of istio ingress gateway pod to the host machine as given below.
 
@@ -65,7 +65,7 @@ On failing case you will see
 
     2024-04-24T01:29:21.481404Z     debug   envoy rbac external/envoy/source/extensions/filters/network/rbac/rbac_filter.cc:168     enforced denied, matched policy none    thread=30
 
-*3.3 Full logs for reference**
+*4.3 Full logs for reference**
 Passing 
 
     gitmarut@gitmarut:~/go/src/envoyistio108/testcases/8-sni-rbac$ grep 01:32:42 logs123
