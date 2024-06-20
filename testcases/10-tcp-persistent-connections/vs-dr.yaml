@@ -1,0 +1,30 @@
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: tcp-random-app
+  namespace: tcp-random-app
+spec:
+  hosts:
+  - tcp-random-app.tcp-random-app.svc.cluster.local
+  tcp:
+  - match:
+    - port: 17777
+    route:
+    - destination:
+        host: tcp-random-app.tcp-random-app.svc.cluster.local
+        port:
+          number: 17778
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: tcp-random-app
+  namespace: tcp-random-app
+spec:
+  host: tcp-random-app.tcp-random-app.svc.cluster.local
+  trafficPolicy:
+    tunnel :
+      targetHost: tcp-random-app.tcp-random-app.svc.cluster.local
+      targetPort: 17778
+---

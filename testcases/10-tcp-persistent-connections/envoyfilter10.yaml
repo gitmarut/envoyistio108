@@ -1,0 +1,57 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: tcp-random-app-http2-tunnel
+  namespace: tcp-random-app
+spec:
+  workloadSelector:
+    labels:
+      app: tcp-random-app
+  configPatches:
+  - applyTo: NETWORK_FILTER
+    match:
+      context: SIDECAR_INBOUND
+      listener:
+        portNumber: 17778
+    patch:
+      operation: MERGE
+      value:
+        typed_config:
+          "@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager"
+          http2_protocol_options:
+            allow_connect: true
+  - applyTo: HTTP_ROUTE
+    match:
+      context: SIDECAR_INBOUND
+      routeConfiguration:
+        vhost:
+          name: "inbound|http|17778"
+    patch:
+      operation: MERGE
+      value:
+        match:
+          connect_matcher: {}
+        route:
+          cluster: inbound_17777
+          upgrade_configs:
+          - upgrade_type: CONNECT
+  - applyTo: CLUSTER
+    match:
+      context: SIDECAR_INBOUND
+    patch:
+      operation: ADD
+      value:
+        name: inbound_17777
+        type: STATIC
+        connect_timeout: 0.5s
+        lb_policy: ROUND_ROBIN
+        load_assignment:
+          cluster_name: inbound_17777
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: "127.0.0.1"
+                    port_value: 17777
+---

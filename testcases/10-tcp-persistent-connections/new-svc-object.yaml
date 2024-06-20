@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tcp-random-app
+  namespace: tcp-random-app
+  labels:
+    app: tcp-random-app
+    service: tcp-random-app
+spec:
+  type: ClusterIP
+  ports:
+  - name: tcp
+    port: 17777
+    protocol: TCP
+    targetPort: 17777
+  - name: http2-tunnel
+    port: 17778
+    protocol: TCP
+    targetPort: 17778
+  selector:
+    app: tcp-random-app
+---
