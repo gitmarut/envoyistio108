@@ -12,7 +12,7 @@ By default envoy accepts header information upto 60kB. In the first case above w
    
   Install [bookinfo](https://github.com/istio/istio/blob/master/samples/bookinfo/platform/kube/bookinfo.yaml) in a namespace called bookinfo0 with istio-injection enabled.
  
-Expose the bookinfo service using a istio gateway and a istio VS. Gateway yaml and VS yaml is given in this directory. Make sure istio ingress gateway is of service type LoadBalancer. (Since I am using a kind cluster with MetalLB in my linux VM, I am not short of LB addresses).
+Expose the bookinfo service using a istio gateway and a istio VS. Gateway yaml and VS yaml is given in this directory. Make sure istio ingress gateway is of service type LoadBalancer. (I am using a kind cluster with MetalLB in my linux VM).
 
 Also I have exposed the productpage service as Load Balancer to test it out at directly for second step.
 

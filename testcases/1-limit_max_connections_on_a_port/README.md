@@ -7,7 +7,7 @@ Example envoyfilter allows only one connection to bookinfo productpage app port 
 
 ## How to test it
 
-Apply the envoyfilter given in this directory to your bookinfo namespace. Expose the bookinfo productpage as  a loadbalancer. (Since I am using a kind cluster with MetalLB in my linux VM, I am not short of LB addresses. You can also do with your node port as well)
+Apply the envoyfilter given in this directory to your bookinfo namespace. Expose the bookinfo productpage as  a loadbalancer. (I am using a kind cluster with MetalLB in my linux VM. You can also do with your node port as well)
 
 Now you can run a "while loop" like this to see there are no errors.
 

@@ -9,7 +9,7 @@ XFCC is a proxy header which indicates certificate information of part or all of
 
 Deploy httpbin application (yaml [here](https://github.com/istio/istio/blob/master/samples/httpbin/httpbin.yaml)) to httpbin namespace. Istio injection is enabled in httpbin namespace.
 
-Expose the httpbin service using a istio gateway and a istio VS. Gateway yaml and VS yaml is given in this directory. Make sure istio ingress gateway is of service type LoadBalancer. (Since I am using a kind cluster with MetalLB in my linux VM, I am not short of LB addresses).
+Expose the httpbin service using a istio gateway and a istio VS. Gateway yaml and VS yaml is given in this directory. Make sure istio ingress gateway is of service type LoadBalancer. (I am using a kind cluster with MetalLB in my linux VM).
 
 A point to note is GW is setup using MUTUAL TLS mode. Means client side has to send it's cert with the curl request. All the cert generation process is given in "cert-creation.md" file.
 ```

@@ -5,7 +5,7 @@ This envoyfilter can help you configure simple outlier detection in your apps ac
 
 **1. Install httpbin application, GW, VS**
 
-Deploy httpbin app in the cluster. Expose the httpbin service using a istio gateway and a istio VS. App deployment yaml, Gateway yaml, VS yaml and secrets yaml is given in this directory. Make sure istio ingress gateway is of service type LoadBalancer. (Since I am using a kind cluster with MetalLB in my linux VM, I am not short of LB addresses).
+Deploy httpbin app in the cluster. Expose the httpbin service using a istio gateway and a istio VS. App deployment yaml, Gateway yaml, VS yaml and secrets yaml is given in this directory. Make sure istio ingress gateway is of service type LoadBalancer. (I am using a kind cluster with MetalLB in my linux VM).
 
 **2. Install a sleep application to fake and co-exist with httpbin**
 
